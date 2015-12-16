@@ -27,7 +27,19 @@ var routes = function(config) {
     var jsonFields = req.query.fields || '';
     var dbName = req.params.database;
     var collectionName = req.params.collection;
-    var defaultKey = (config.defaultKeyNames && config.defaultKeyNames[dbName] && config.defaultKeyNames[dbName][collectionName]) ? config.defaultKeyNames[dbName][collectionName] : '_id';
+    var defaultKey = (config.defaultKeyNames && config.defaultKeyNames[dbName] && config.defaultKeyNames[dbName][collectionName]) ?
+      config.defaultKeyNames[dbName][collectionName] :
+      '_id';
+    var edKey = function (doc, defaultKey) {
+      var defaultKeyAsArray = defaultKey.split('.');
+      var val = doc;
+      for (var i = 0; i < defaultKeyAsArray.length; i++) {
+        if (val[defaultKeyAsArray[i]]) {
+          val = val[defaultKeyAsArray[i]];
+        }
+      }
+      return val;
+    };
 
     if (key && value) {
       // If type == J, convert value as json document
@@ -113,7 +125,8 @@ var routes = function(config) {
           type: type,
           query: jsonQuery,
           fields: jsonFields,
-          defaultKey: defaultKey
+          defaultKey: defaultKey,
+          edKey: edKey
         };
 
         res.render('collection', ctx);
@@ -131,6 +144,15 @@ var routes = function(config) {
       aItems.push(docStr);
         }
       res.write(aItems.join(os.EOL));
+      res.end();
+    });
+  };
+
+  exp.exportColArray = function(req, res) {
+    req.collection.find().toArray(function(err, items) {
+        res.setHeader('Content-disposition', 'attachment; filename=' + req.collectionName + '.json');
+      res.setHeader('Content-type', 'application/json');
+      res.write(bson.toJsonString(items));
       res.end();
     });
   };
@@ -202,7 +224,7 @@ var routes = function(config) {
       return res.redirect('back');
     }
 
-    req.collection.rename(name, function(err, collection) {
+    req.collection.rename(name, function(err) {
       if (err) {
         req.session.error = 'Something went wrong: ' + err;
         console.error(err);
